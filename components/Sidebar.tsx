@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Page } from '../types';
 import { TEMPLATES } from '../utils/templates';
 
@@ -8,6 +8,7 @@ interface SidebarProps {
   activePageId: string | null;
   onSelectPage: (id: string) => void;
   onAddPage: () => void;
+  onAddFromTemplate: (templateKey: string) => void;
   onOpenGallery: () => void;
   onOpenSettings: () => void;
   onDeletePage: (id: string) => void;
@@ -16,6 +17,7 @@ interface SidebarProps {
   darkMode: boolean;
   onToggleDarkMode: () => void;
   isOnline: boolean;
+  templateUsage?: Record<string, number>;
 }
 
 const Logo = () => (
@@ -35,8 +37,18 @@ const Logo = () => (
 );
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
-  pages, activePageId, onSelectPage, onAddPage, onOpenGallery, onOpenSettings, onDeletePage, isOpen, onClose, darkMode, onToggleDarkMode, isOnline
+  pages, activePageId, onSelectPage, onAddPage, onAddFromTemplate, onOpenGallery, onOpenSettings, onDeletePage, isOpen, onClose, darkMode, onToggleDarkMode, isOnline, templateUsage = {}
 }) => {
+  const sortedTemplates = useMemo(() => {
+    return Object.entries(TEMPLATES)
+      .sort((a, b) => {
+        const usageA = templateUsage[a[0]] || 0;
+        const usageB = templateUsage[b[0]] || 0;
+        return usageB - usageA;
+      })
+      .slice(0, 4);
+  }, [templateUsage]);
+
   return (
     <>
       {isOpen && <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[80] lg:hidden" onClick={onClose} />}
@@ -52,14 +64,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           <div className="flex-1 overflow-y-auto no-scrollbar space-y-10 pr-1">
             <section className="space-y-4">
-              <div className="flex items-center justify-between px-1">
-                <div className="text-[10px] font-black text-zinc-400 dark:text-zinc-700 uppercase tracking-[0.3em]">Toolkit</div>
-                <button onClick={onOpenGallery} className="text-[9px] font-black text-cyan-500 uppercase tracking-widest bg-cyan-500/5 px-2.5 py-1 rounded-full hover:bg-cyan-500/10 transition-colors">Gallery</button>
+              <div className="flex flex-col gap-3 px-1">
+                <div className="flex items-center justify-between">
+                  <div className="text-[10px] font-black text-zinc-400 dark:text-zinc-700 uppercase tracking-[0.3em]">Toolkit</div>
+                  <button onClick={onOpenGallery} className="text-[9px] font-black text-cyan-500 hover:text-cyan-600 transition-colors uppercase tracking-[0.2em]">View Gallery →</button>
+                </div>
               </div>
+              
               <div className="grid grid-cols-2 gap-3">
-                {Object.entries(TEMPLATES).slice(0, 4).map(([key, tpl]) => (
-                  <button key={key} onClick={() => { onOpenGallery(); }} className="flex flex-col items-center justify-center p-4 bg-zinc-50 dark:bg-zinc-900/30 border border-zinc-100 dark:border-zinc-800 rounded-3xl transition-all group hover:bg-white dark:hover:bg-zinc-800 hover:shadow-xl active:scale-95">
-                    <span className="text-2xl mb-1">{tpl.icon}</span>
+                {sortedTemplates.map(([key, tpl]) => (
+                  <button 
+                    key={key} 
+                    onClick={() => { onAddFromTemplate(key); if (window.innerWidth < 1024) onClose(); }} 
+                    className="flex flex-col items-center justify-center p-4 bg-zinc-50 dark:bg-zinc-900/30 border border-zinc-100 dark:border-zinc-800 rounded-3xl transition-all group hover:bg-white dark:hover:bg-zinc-800 hover:shadow-xl active:scale-95"
+                  >
+                    <span className="text-2xl mb-1 transition-transform group-hover:scale-125">{tpl.icon}</span>
                     <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest text-center">{tpl.title}</span>
                   </button>
                 ))}
@@ -76,7 +95,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <div className="space-y-2">
                 {pages.map((page) => (
                   <div key={page.id} className={`group flex items-center justify-between py-4 px-5 rounded-3xl cursor-pointer transition-all border ${activePageId === page.id ? 'bg-zinc-900 text-white dark:bg-white dark:text-black border-zinc-900 dark:border-white shadow-xl' : 'hover:bg-zinc-50 dark:hover:bg-zinc-900/50 text-zinc-500 border-transparent'}`} onClick={() => { onSelectPage(page.id); if (window.innerWidth < 1024) onClose(); }}>
-                    <span className="text-[11px] font-black tracking-widest uppercase truncate">{page.title || 'Draft Context'}</span>
+                    <span className="text-[11px] font-black tracking-widest uppercase truncate pr-4">{page.title || 'Draft Context'}</span>
                     <button onClick={(e) => { e.stopPropagation(); onDeletePage(page.id); }} className={`p-2 transition-all opacity-0 group-hover:opacity-100 hover:text-red-500 ${activePageId === page.id ? 'text-red-400 opacity-100' : 'text-zinc-300'}`}>
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                     </button>

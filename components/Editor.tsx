@@ -14,15 +14,26 @@ interface EditorProps {
   onJumpTo?: (id: string) => void;
   onDelete?: (id: string) => void;
   isSecondary?: boolean;
+  darkMode: boolean;
+  onToggleDarkMode: () => void;
 }
 
-export const Editor: React.FC<EditorProps> = ({ page, allPages, onUpdate, onOpenSplit, onJumpTo, onDelete, isSecondary }) => {
+export const Editor: React.FC<EditorProps> = ({ 
+  page, 
+  allPages, 
+  onUpdate, 
+  onOpenSplit, 
+  onJumpTo, 
+  onDelete, 
+  isSecondary,
+  darkMode,
+  onToggleDarkMode
+}) => {
   const [focusedBlockId, setFocusedBlockId] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const [showLinkSelector, setShowLinkSelector] = useState<{ blockId?: string } | null>(null);
   const [showLinkedPanel, setShowLinkedPanel] = useState(false);
   const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
-  const [focusMode, setFocusMode] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   const inboundLinks = useMemo(() => {
@@ -129,7 +140,7 @@ export const Editor: React.FC<EditorProps> = ({ page, allPages, onUpdate, onOpen
 
   return (
     <div 
-      className={`min-h-full flex flex-col cursor-text pb-96 transition-colors duration-500 ${focusMode ? 'bg-zinc-50 dark:bg-zinc-950' : 'bg-white dark:bg-zinc-950'}`}
+      className={`min-h-full flex flex-col cursor-text pb-96 transition-colors duration-500 bg-white dark:bg-zinc-950`}
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           const lastBlock = page.blocks[page.blocks.length - 1];
@@ -182,8 +193,12 @@ export const Editor: React.FC<EditorProps> = ({ page, allPages, onUpdate, onOpen
                 Synapse Bridge
               </button>
             )}
-            <button onClick={() => setFocusMode(!focusMode)} className={`p-3 rounded-2xl transition-all border ${focusMode ? 'bg-zinc-900 dark:bg-white text-white dark:text-black' : 'bg-zinc-50 dark:bg-zinc-900 text-zinc-400 border-zinc-100 dark:border-zinc-800 hover:text-cyan-500'}`}>
-              {focusMode ? '☀️' : '🌙'}
+            <button 
+              onClick={onToggleDarkMode} 
+              className={`p-3 rounded-2xl transition-all border ${darkMode ? 'bg-white text-black' : 'bg-zinc-900 text-white'} border-zinc-100 dark:border-zinc-800 hover:text-cyan-500`}
+              title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            >
+              {darkMode ? '☀️' : '🌙'}
             </button>
             {onDelete && (
               <button onClick={() => onDelete(page.id)} className="p-3 bg-red-500/10 text-red-500 border border-red-500/20 rounded-2xl hover:bg-red-500 hover:text-white transition-all active:scale-90 group">

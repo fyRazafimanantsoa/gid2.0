@@ -1,6 +1,6 @@
 
-import React, { useState, useMemo, useCallback } from 'react';
-import { DatabaseData, DatabaseColumn, DbColType, Page } from '../../types';
+import React, { useState, useMemo } from 'react';
+import { DatabaseData, DatabaseColumn, DbColType, Page, SubTask } from '../../types';
 
 interface DatabaseBlockProps {
   data: DatabaseData;
@@ -12,11 +12,25 @@ export const DatabaseBlock: React.FC<DatabaseBlockProps> = ({ data, onChange, al
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [isResizing, setIsResizing] = useState<{ id: string; startX: number; startWidth: number } | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [expandedChecklist, setExpandedChecklist] = useState<string | null>(null); // rowId-colId
 
   const viewConfig = data.viewConfig || { page: 1, pageSize: 10, searchQuery: '', sortBy: undefined };
 
   const updateConfig = (updates: Partial<NonNullable<DatabaseData['viewConfig']>>) => {
     onChange({ ...data, viewConfig: { ...viewConfig, ...updates } });
+  };
+
+  const calculateProgress = (row: any) => {
+    // Look for a checklist column in this row
+    const checklistCol = data.columns.find(c => c.type === 'checklist');
+    if (checklistCol) {
+      const items = row[checklistCol.id] as SubTask[];
+      if (items && items.length > 0) {
+        const completed = items.filter(i => i.checked).length;
+        return Math.round((completed / items.length) * 100);
+      }
+    }
+    return null;
   };
 
   const processedRows = useMemo(() => {
@@ -56,7 +70,10 @@ export const DatabaseBlock: React.FC<DatabaseBlockProps> = ({ data, onChange, al
     const newId = Math.random().toString(36).substr(2, 9);
     const newRow: Record<string, any> = { id: newId };
     data.columns.forEach(col => { 
-      newRow[col.id] = col.type === 'checkbox' ? false : (col.type === 'progress' || col.type === 'rating') ? 0 : '';
+      if (col.type === 'checklist') newRow[col.id] = [];
+      else if (col.type === 'checkbox') newRow[col.id] = false;
+      else if (col.type === 'progress' || col.type === 'rating') newRow[col.id] = 0;
+      else newRow[col.id] = '';
     });
     onChange({ ...data, rows: [newRow, ...data.rows] });
   };
@@ -69,10 +86,20 @@ export const DatabaseBlock: React.FC<DatabaseBlockProps> = ({ data, onChange, al
   };
 
   const updateCell = (rowId: string, colId: string, value: any) => {
-    onChange({
-      ...data,
-      rows: data.rows.map(row => row.id === rowId ? { ...row, [colId]: value } : row)
+    const updatedRows = data.rows.map(row => {
+      if (row.id === rowId) {
+        const updatedRow = { ...row, [colId]: value };
+        // If updating a checklist, trigger progress update if progress column exists
+        const progressCol = data.columns.find(c => c.type === 'progress');
+        if (progressCol && data.columns.find(c => c.id === colId && c.type === 'checklist')) {
+          const newProgress = calculateProgress(updatedRow);
+          if (newProgress !== null) updatedRow[progressCol.id] = newProgress;
+        }
+        return updatedRow;
+      }
+      return row;
     });
+    onChange({ ...data, rows: updatedRows });
   };
 
   const handleSort = (colId: string) => {
@@ -120,6 +147,59 @@ export const DatabaseBlock: React.FC<DatabaseBlockProps> = ({ data, onChange, al
     const cellClass = "w-full bg-transparent border-none focus:ring-0 p-0 text-[11px] font-medium transition-colors";
 
     switch (col.type) {
+      case 'checklist':
+        const items = (val || []) as SubTask[];
+        const comp = items.filter(i => i.checked).length;
+        const total = items.length;
+        const expandedId = `${row.id}-${col.id}`;
+        return (
+          <div className="flex flex-col gap-2 min-w-[200px]">
+            <button 
+              onClick={() => setExpandedChecklist(expandedChecklist === expandedId ? null : expandedId)}
+              className="flex items-center gap-2 px-3 py-1.5 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-100 dark:border-zinc-800 hover:border-cyan-500 transition-all text-left"
+            >
+              <span className="text-[10px] font-black uppercase text-zinc-400">{total} Items</span>
+              <div className="flex-1 h-1 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
+                <div className="h-full bg-cyan-500" style={{ width: `${total ? (comp/total)*100 : 0}%` }} />
+              </div>
+              <span className="text-[10px] text-zinc-300">{expandedChecklist === expandedId ? '▲' : '▼'}</span>
+            </button>
+            {expandedChecklist === expandedId && (
+              <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl space-y-2 animate-in fade-in slide-in-from-top-1">
+                {items.map(st => (
+                  <div key={st.id} className="flex items-center gap-2">
+                    <input 
+                      type="checkbox" 
+                      checked={st.checked} 
+                      onChange={(e) => {
+                        const next = items.map(i => i.id === st.id ? { ...i, checked: e.target.checked } : i);
+                        updateCell(row.id, col.id, next);
+                      }} 
+                      className="w-3 h-3 rounded border-zinc-300 text-cyan-500" 
+                    />
+                    <input 
+                      value={st.text} 
+                      onChange={(e) => {
+                        const next = items.map(i => i.id === st.id ? { ...i, text: e.target.value } : i);
+                        updateCell(row.id, col.id, next);
+                      }}
+                      className="bg-transparent border-none p-0 text-[10px] focus:ring-0 flex-1 text-zinc-600 dark:text-zinc-300"
+                    />
+                  </div>
+                ))}
+                <button 
+                  onClick={() => {
+                    const next = [...items, { id: Math.random().toString(36).substr(2, 9), text: '', checked: false }];
+                    updateCell(row.id, col.id, next);
+                  }}
+                  className="text-[9px] font-black text-cyan-500 uppercase tracking-widest pt-1"
+                >
+                  + Add Step
+                </button>
+              </div>
+            )}
+          </div>
+        );
       case 'checkbox':
         return <input type="checkbox" checked={!!val} onChange={(e) => updateCell(row.id, col.id, e.target.checked)} className="w-4 h-4 rounded border-zinc-300 text-cyan-500 focus:ring-cyan-500" />;
       case 'rating':
@@ -131,12 +211,20 @@ export const DatabaseBlock: React.FC<DatabaseBlockProps> = ({ data, onChange, al
           </div>
         );
       case 'progress':
+        const derived = calculateProgress(row);
+        const displayVal = derived !== null ? derived : (val || 0);
+        const isCalculated = derived !== null;
+        
         return (
-          <div className="flex items-center gap-3 w-full">
+          <div className="flex items-center gap-3 w-full group/prog">
             <div className="flex-1 h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-              <div className="h-full bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.4)] transition-all" style={{ width: `${val || 0}%` }} />
+              <div className={`h-full transition-all ${isCalculated ? 'bg-gradient-to-r from-cyan-500 to-blue-500' : 'bg-cyan-500'}`} style={{ width: `${displayVal}%` }} />
             </div>
-            <input type="number" value={val || 0} onChange={(e) => updateCell(row.id, col.id, parseInt(e.target.value) || 0)} className="w-8 text-right bg-transparent text-[9px] font-black border-none p-0 focus:ring-0 text-zinc-400" />
+            {isCalculated ? (
+              <span className="text-[9px] font-black text-cyan-500 w-8 text-right">{displayVal}%</span>
+            ) : (
+              <input type="number" value={displayVal} onChange={(e) => updateCell(row.id, col.id, parseInt(e.target.value) || 0)} className="w-8 text-right bg-transparent text-[9px] font-black border-none p-0 focus:ring-0 text-zinc-400" />
+            )}
           </div>
         );
       case 'tags':

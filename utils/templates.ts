@@ -60,18 +60,38 @@ export const TEMPLATES: Record<string, { title: string, icon: string, blocks: Bl
       { id: 'db2', type: 'database', content: JSON.stringify({
         columns: [
           { id: 'item', title: 'Component', type: 'text', width: 200 },
-          { id: 'priority', title: 'Priority', type: 'rating', width: 120 },
-          { id: 'progress', title: 'Progress', type: 'progress', width: 150 },
           { id: 'status', title: 'Status', type: 'tags', width: 150 },
-          { id: 'deadline', title: 'Deadline', type: 'date', width: 150 },
-          { id: 'verify', title: 'Ready', type: 'checkbox', width: 80 }
+          { id: 'roadmap', title: 'Roadmap', type: 'checklist', width: 250 },
+          { id: 'progress', title: 'Sync Progress', type: 'progress', width: 150 },
+          { id: 'deadline', title: 'Deadline', type: 'date', width: 150 }
         ],
         rows: [
-          { id: 'r1', item: 'System Core', priority: 5, progress: 85, status: ['Stable', 'Core'], deadline: '2024-06-01', verify: true },
-          { id: 'r2', item: 'Auth Module', priority: 4, progress: 40, status: ['Testing'], deadline: '2024-06-15', verify: false }
+          { 
+            id: 'r1', 
+            item: 'System Core Engine', 
+            status: ['Stable', 'Core'], 
+            roadmap: [
+              { id: 'st1', text: 'Kernel Integration', checked: true },
+              { id: 'st2', text: 'Memory Swap', checked: true },
+              { id: 'st3', text: 'IO Optimization', checked: false }
+            ],
+            progress: 66,
+            deadline: '2024-12-01' 
+          },
+          { 
+            id: 'r2', 
+            item: 'UI Design System', 
+            status: ['Refining'], 
+            roadmap: [
+              { id: 'st4', text: 'Color Palettes', checked: true },
+              { id: 'st5', text: 'Iconography', checked: false }
+            ],
+            progress: 50,
+            deadline: '2024-12-15'
+          }
         ],
         viewConfig: {
-          sortBy: { colId: 'priority', direction: 'desc' },
+          sortBy: { colId: 'item', direction: 'asc' },
           page: 1,
           pageSize: 10
         }

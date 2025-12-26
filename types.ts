@@ -59,7 +59,7 @@ export interface Page {
   deletedAt?: number;
 }
 
-export type DbColType = 'text' | 'number' | 'checkbox' | 'date' | 'select' | 'tags' | 'progress' | 'rating' | 'relation';
+export type DbColType = 'text' | 'number' | 'checkbox' | 'date' | 'select' | 'tags' | 'progress' | 'rating' | 'relation' | 'checklist';
 
 export interface DatabaseColumn {
   id: string;

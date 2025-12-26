@@ -20,6 +20,10 @@ const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [templateUsage, setTemplateUsage] = useState<Record<string, number>>(() => {
+    const saved = localStorage.getItem('gid_template_usage');
+    return saved ? JSON.parse(saved) : {};
+  });
   
   // Settings & Preferences
   const [settings, setSettings] = useState<UserSettings>(() => {
@@ -67,6 +71,10 @@ const App: React.FC = () => {
       setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
     }
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem('gid_template_usage', JSON.stringify(templateUsage));
+  }, [templateUsage]);
 
   useEffect(() => {
     localStorage.setItem('gid_settings', JSON.stringify(settings));
@@ -175,6 +183,12 @@ const App: React.FC = () => {
   const handleAddFromTemplate = (templateKey: string) => {
     const template = TEMPLATES[templateKey];
     if (!template) return;
+    
+    setTemplateUsage(prev => ({
+      ...prev,
+      [templateKey]: (prev[templateKey] || 0) + 1
+    }));
+
     const newBlocks = template.blocks.map(b => ({ ...b, id: Math.random().toString(36).substr(2, 9) }));
     const newPage = createNewPage(template.title, newBlocks);
     setPages(prev => [newPage, ...prev]);
@@ -242,6 +256,7 @@ const App: React.FC = () => {
         activePageId={activePageId}
         onSelectPage={setActivePageId}
         onAddPage={handleAddPage}
+        onAddFromTemplate={handleAddFromTemplate}
         onOpenGallery={() => setShowGallery(true)}
         onOpenSettings={() => setShowSettings(true)}
         onDeletePage={setDeleteTargetId}
@@ -250,6 +265,7 @@ const App: React.FC = () => {
         darkMode={darkMode}
         onToggleDarkMode={() => setDarkMode(!darkMode)}
         isOnline={isOnline}
+        templateUsage={templateUsage}
       />
 
       <main className="flex-1 flex flex-col lg:flex-row lg:ml-72 relative">
@@ -266,6 +282,8 @@ const App: React.FC = () => {
               onOpenSplit={setSecondaryPageId}
               onJumpTo={setActivePageId}
               onDelete={setDeleteTargetId}
+              darkMode={darkMode}
+              onToggleDarkMode={() => setDarkMode(!darkMode)}
             />
           ) : (
             <div className="h-full flex flex-col items-center justify-center text-zinc-200 dark:text-zinc-800">
@@ -294,7 +312,15 @@ const App: React.FC = () => {
                 </button>
               </div>
             </div>
-            <Editor page={secondaryPage} allPages={pages} onUpdate={handleUpdatePage} onJumpTo={setActivePageId} isSecondary />
+            <Editor 
+              page={secondaryPage} 
+              allPages={pages} 
+              onUpdate={handleUpdatePage} 
+              onJumpTo={setActivePageId} 
+              isSecondary 
+              darkMode={darkMode}
+              onToggleDarkMode={() => setDarkMode(!darkMode)}
+            />
           </div>
         )}
       </main>
