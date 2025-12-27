@@ -20,7 +20,8 @@ export type BlockType =
   | 'date'
   | 'time'
   | 'math'
-  | 'emoji';
+  | 'emoji'
+  | 'timer';
 
 export type ScheduleType = 'today' | 'week' | 'someday' | null;
 export type ImportanceLevel = 'High' | 'Medium' | 'Low' | 'Extension';
@@ -80,7 +81,7 @@ export interface DatabaseData {
     searchQuery?: string;
     page?: number;
     pageSize?: number;
-    viewMode?: 'table' | 'kanban' | 'gallery';
+    viewMode?: 'table' | 'kanban' | 'gallery' | 'calendar';
   };
 }
 

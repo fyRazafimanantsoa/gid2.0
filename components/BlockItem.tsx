@@ -6,6 +6,7 @@ import { DatabaseBlock } from './blocks/DatabaseBlock';
 import { MindMapBlock } from './blocks/MindMapBlock';
 import { CodeBlock } from './blocks/CodeBlock';
 import { ProjectManagementBlock } from './blocks/ProjectManagementBlock';
+import { TimerBlock } from './blocks/TimerBlock';
 
 interface BlockItemProps {
   block: Block;
@@ -58,6 +59,8 @@ export const BlockItem: React.FC<BlockItemProps> = ({
             <textarea ref={editableRef} value={block.content} onKeyDown={onKeyDown} onChange={handleInput} onFocus={onFocus} placeholder={block.type === 'todo' ? "Mission task..." : "Check item..."} className={`${commonClasses} ${block.checked ? 'line-through text-zinc-300 dark:text-zinc-700' : 'text-zinc-800 dark:text-zinc-100'}`} rows={1} />
           </div>
         );
+      case 'timer':
+        return <TimerBlock value={parseInt(block.content) || 0} metadata={block.metadata} onUpdate={(c, m) => onUpdate({ content: String(c), metadata: m })} />;
       case 'quote':
         return (
           <div className="border-l-4 border-zinc-200 dark:border-zinc-800 pl-6 py-2">
@@ -69,44 +72,6 @@ export const BlockItem: React.FC<BlockItemProps> = ({
           <div className="flex gap-4 p-5 bg-cyan-500/[0.03] dark:bg-cyan-500/[0.05] rounded-2xl border border-cyan-500/10 dark:border-cyan-500/20 items-start">
             <span className="text-lg opacity-60">💡</span>
             <textarea ref={editableRef} value={block.content} onKeyDown={onKeyDown} onChange={handleInput} onFocus={onFocus} placeholder="Intelligence insight..." className={`${commonClasses} text-cyan-600 dark:text-cyan-400 italic font-medium`} rows={1} />
-          </div>
-        );
-      case 'math':
-        return (
-          <div className="flex gap-4 p-5 bg-zinc-50 dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 items-start">
-            <span className="text-sm font-black text-zinc-300">∑</span>
-            <textarea ref={editableRef} value={block.content} onKeyDown={onKeyDown} onChange={handleInput} onFocus={onFocus} placeholder="E = mc^2" className={`${commonClasses} code-font text-zinc-900 dark:text-zinc-100 font-bold`} rows={1} />
-          </div>
-        );
-      case 'date':
-      case 'time':
-        return (
-          <div className="flex items-center gap-3">
-            <span className="text-zinc-300 text-sm">{block.type === 'date' ? '📅' : '⌚'}</span>
-            <textarea ref={editableRef} value={block.content} onKeyDown={onKeyDown} onChange={handleInput} onFocus={onFocus} placeholder={`Add ${block.type}...`} className={`${commonClasses} text-zinc-900 dark:text-zinc-100 font-bold`} rows={1} />
-          </div>
-        );
-      case 'image':
-      case 'video':
-      case 'audio':
-        return (
-          <div className="my-4 p-8 bg-zinc-50 dark:bg-zinc-900/50 rounded-3xl border border-dashed border-zinc-200 dark:border-zinc-800 flex flex-col items-center text-center gap-4 group/media">
-            <span className="text-4xl">{block.type === 'image' ? '🖼' : block.type === 'video' ? '🎬' : '♬'}</span>
-            {!block.content ? (
-              <input 
-                autoFocus
-                onKeyDown={(e) => { if (e.key === 'Enter') onUpdate({ content: e.currentTarget.value }); }}
-                className="w-full max-w-sm bg-white dark:bg-zinc-950 border border-zinc-100 dark:border-zinc-800 rounded-xl p-3 text-[10px] font-bold text-center focus:ring-2 focus:ring-cyan-500/20 uppercase tracking-widest"
-                placeholder={`Paste ${block.type} URL and press Enter...`}
-              />
-            ) : (
-              <div className="relative w-full max-w-2xl">
-                 {block.type === 'image' && <img src={block.content} className="w-full h-auto rounded-2xl shadow-xl border border-zinc-100 dark:border-zinc-800" />}
-                 {block.type === 'video' && <video src={block.content} controls className="w-full rounded-2xl shadow-xl" />}
-                 {block.type === 'audio' && <audio src={block.content} controls className="w-full" />}
-                 <button onClick={() => onUpdate({ content: '' })} className="absolute top-2 right-2 p-2 bg-black/60 text-white rounded-full opacity-0 group-hover/media:opacity-100 transition-opacity">×</button>
-              </div>
-            )}
           </div>
         );
       case 'code':
@@ -146,7 +111,7 @@ export const BlockItem: React.FC<BlockItemProps> = ({
               className={`p-1.5 rounded-lg transition-colors ${block.linkMetadata ? 'text-cyan-500 bg-cyan-500/10' : 'text-zinc-400 hover:text-cyan-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'}`}
               title="Link to Context"
             >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 105.656 5.656l1.1-1.1"/></svg>
             </button>
             <button 
               onClick={(e) => { e.stopPropagation(); onDelete(); }} 
