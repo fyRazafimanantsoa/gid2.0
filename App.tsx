@@ -108,10 +108,32 @@ const App: React.FC = () => {
   }, [createNewPage]);
 
   useEffect(() => {
-    if (!isLoading && pages.length > 0) {
+    if (isLoading || pages.length === 0) return;
+
+    let cancelled = false;
+    const interval = settings?.autoSaveInterval || 5000;
+    const timer = setTimeout(() => {
+      if (cancelled) return;
       savePages(pages).catch(console.error);
-    }
-  }, [pages, isLoading]);
+    }, interval);
+
+    // ensure DB is persisted when user closes the tab
+    const handleBeforeUnload = () => {
+      try {
+        // attempt synchronous persist via navigator.sendBeacon fallback
+        savePages(pages);
+      } catch (e) {
+        // best-effort
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [pages, isLoading, settings?.autoSaveInterval]);
 
   useEffect(() => {
     if (darkMode) {

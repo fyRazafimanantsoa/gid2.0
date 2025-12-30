@@ -35,7 +35,15 @@ export const BlockItem: React.FC<BlockItemProps> = ({
 
   useEffect(() => {
     if (isFocused && editableRef.current && textTypes.includes(block.type)) {
-      editableRef.current.focus();
+      const el = editableRef.current;
+      el.focus();
+      // set initial height to fit content
+      try {
+        el.style.height = 'inherit';
+        el.style.height = `${el.scrollHeight}px`;
+      } catch (e) {}
+      // smoothly bring focused block into view for expand effect
+      try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {}
     }
   }, [isFocused, block.type]);
 
@@ -44,6 +52,16 @@ export const BlockItem: React.FC<BlockItemProps> = ({
     e.target.style.height = 'inherit';
     e.target.style.height = `${e.target.scrollHeight}px`;
   };
+
+  // set initial autosize when component mounts or content changes
+  useEffect(() => {
+    if (editableRef.current) {
+      try {
+        editableRef.current.style.height = 'inherit';
+        editableRef.current.style.height = `${editableRef.current.scrollHeight}px`;
+      } catch (e) {}
+    }
+  }, [block.content]);
 
   const linkedPage = block.linkMetadata ? allPages.find(p => p.id === block.linkMetadata?.sourcePageId) : null;
 

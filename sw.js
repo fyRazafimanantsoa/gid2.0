@@ -1,50 +1,105 @@
 
 const CACHE_NAME = 'gid-cache-v2';
-const ASSETS = [
+const SHELL_ASSETS = [
   '/',
   '/index.html',
-  '/manifest.json',
-  'https://cdn.tailwindcss.com',
-  'https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.wasm',
-  'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=JetBrains+Mono&display=swap'
+  '/manifest.json'
 ];
+
+// Utility: trim cache entries to a max number
+async function trimCache(cacheName, maxItems) {
+  const cache = await caches.open(cacheName);
+  const keys = await cache.keys();
+  if (keys.length > maxItems) {
+    for (let i = 0; i < keys.length - maxItems; i++) {
+      await cache.delete(keys[i]);
+    }
+  }
+}
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
+    caches.open(CACHE_NAME).then(cache => cache.addAll(SHELL_ASSETS))
   );
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (e) => {
   e.waitUntil(
-    caches.keys().then(keys => Promise.all(
-      keys.map(key => {
-        if (key !== CACHE_NAME) return caches.delete(key);
-      })
-    ))
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(keys.map(key => key !== CACHE_NAME ? caches.delete(key) : Promise.resolve()));
+      if (self.clients && clients.claim) await clients.claim();
+    })()
   );
 });
 
+// Network-first for large WASM/CDN assets (don't aggressively cache wasm)
+function isLargeWasmOrPyodide(url) {
+  return /pyodide|sql-wasm|\.wasm/.test(url);
+}
+
+// Stale-while-revalidate for fonts and generic CDNs, with cache trimming
+function isFontOrCDN(url) {
+  return /fonts.googleapis.com|fonts.gstatic.com|cdn.jsdelivr|cdnjs|tailwindcss.com/.test(url);
+}
+
 self.addEventListener('fetch', (e) => {
-  // Special handling for CDNs: cache them as they are fetched if not already in ASSETS
-  e.respondWith(
-    caches.match(e.request).then(response => {
-      if (response) return response;
-      return fetch(e.request).then(networkResponse => {
-        // Don't cache non-GET requests or things we don't want to cache
-        if (!e.request.url.startsWith('http') || e.request.method !== 'GET') {
-          return networkResponse;
-        }
-        return caches.open(CACHE_NAME).then(cache => {
-          cache.put(e.request, networkResponse.clone());
-          return networkResponse;
+  const req = e.request;
+  const url = req.url;
+
+  // Navigation (SPA) — serve shell then network update
+  if (req.mode === 'navigate') {
+    e.respondWith(
+      caches.match('/index.html').then(cached => cached || fetch(req))
+    );
+    return;
+  }
+
+  // Large wasm/pyodide: network-first, fallback to cache but do not cache new large responses
+  if (isLargeWasmOrPyodide(url)) {
+    e.respondWith(
+      fetch(req).then(networkRes => networkRes).catch(() => caches.match(req))
+    );
+    return;
+  }
+
+  // Fonts and CDN: stale-while-revalidate and keep cache small
+  if (isFontOrCDN(url)) {
+    e.respondWith(
+      caches.open(CACHE_NAME).then(async cache => {
+        const cached = await cache.match(req);
+        const networkPromise = fetch(req).then(networkRes => {
+          if (networkRes && networkRes.ok) cache.put(req, networkRes.clone());
+          trimCache(CACHE_NAME, 60);
+          return networkRes;
+        }).catch(() => null);
+        return cached || networkPromise;
+      })
+    );
+    return;
+  }
+
+  // Default: cache-first then network, but only for GETs and http(s)
+  if (req.method === 'GET' && url.startsWith('http')) {
+    e.respondWith(
+      caches.match(req).then(cached => {
+        if (cached) return cached;
+        return fetch(req).then(networkRes => {
+          return caches.open(CACHE_NAME).then(cache => {
+            // small assets only
+            try {
+              cache.put(req, networkRes.clone());
+              trimCache(CACHE_NAME, 200);
+            } catch (err) {
+              // ignore put failures (e.g., opaque responses)
+            }
+            return networkRes;
+          });
+        }).catch(() => {
+          // fallback could be added here (image placeholder, offline page)
         });
-      });
-    }).catch(() => {
-      // Offline fallback can go here
-    })
-  );
+      })
+    );
+  }
 });

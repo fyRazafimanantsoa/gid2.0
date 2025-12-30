@@ -263,7 +263,7 @@ export const Editor: React.FC<EditorProps> = memo(({
               onUpdate={(u) => updateBlocks(page.blocks.map(b => b.id === block.id ? { ...b, ...u } : b))}
               onKeyDown={(e) => handleKeyDown(e, block)}
               onDelete={() => updateBlocks(page.blocks.filter(b => b.id !== block.id))}
-              onDragStart={() => setDraggedBlockId(block.id)}
+              onDragStart={(e: React.DragEvent) => { e.dataTransfer?.setData('text/plain', block.id); setDraggedBlockId(block.id); }}
               onDrop={() => {
                 if (!draggedBlockId) return;
                 const newBlocks = [...page.blocks];

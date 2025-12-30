@@ -65,6 +65,11 @@
         -webkit-tap-highlight-color: transparent;
         overscroll-behavior-y: contain;
       }
+      html { scroll-behavior: smooth; }
+      /* Respect user preference to reduce motion */
+      @media (prefers-reduced-motion: reduce) {
+        * { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
+      }
       .code-font {
         font-family: 'JetBrains Mono', monospace;
       }
@@ -86,6 +91,15 @@
         -ms-overflow-style: none;
         scrollbar-width: none;
       }
+
+      /* subtle focus outline for keyboard users */
+      :focus {
+        outline: 3px solid rgba(0,191,166,0.12);
+        outline-offset: 2px;
+      }
+
+      /* gentle backdrop blur for overlays to feel smoother */
+      .backdrop-blur-3xl { backdrop-filter: blur(8px); }
     </style>
 <script type="importmap">
 {

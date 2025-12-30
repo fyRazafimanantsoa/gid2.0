@@ -12,7 +12,7 @@ export const LinkSelector: React.FC<LinkSelectorProps> = ({ pages, onSelect, onC
   const [search, setSearch] = useState('');
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
 
-  const filteredPages = pages.filter(p => p.title.toLowerCase().includes(search.toLowerCase()));
+  const filteredPages = pages.filter(p => (p.title || '').toLowerCase().includes(search.toLowerCase()));
   const selectedPage = pages.find(p => p.id === selectedPageId);
 
   return (
@@ -63,7 +63,7 @@ export const LinkSelector: React.FC<LinkSelectorProps> = ({ pages, onSelect, onC
             <div className="flex-1 overflow-y-auto p-8 space-y-8">
               <div className="grid grid-cols-2 gap-4">
                 <button 
-                  onClick={() => onSelect(selectedPageId, undefined, 'live')}
+                  onClick={() => { onSelect(selectedPageId!, undefined, 'live'); onClose(); }}
                   className="p-8 rounded-[2rem] border-2 border-cyan-500 bg-cyan-500/5 text-center transition-all hover:scale-[1.02] active:scale-95 group"
                 >
                   <span className="text-3xl mb-4 block group-hover:animate-pulse">🛰️</span>
@@ -71,7 +71,7 @@ export const LinkSelector: React.FC<LinkSelectorProps> = ({ pages, onSelect, onC
                   <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-tighter">Bi-directional Sync</span>
                 </button>
                 <button 
-                  onClick={() => onSelect(selectedPageId, undefined, 'snapshot')}
+                  onClick={() => { onSelect(selectedPageId!, undefined, 'snapshot'); onClose(); }}
                   className="p-8 rounded-[2rem] border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-center transition-all hover:border-zinc-300 active:scale-95 group"
                 >
                   <span className="text-3xl mb-4 block group-hover:rotate-12 transition-transform">📸</span>
@@ -80,14 +80,14 @@ export const LinkSelector: React.FC<LinkSelectorProps> = ({ pages, onSelect, onC
                 </button>
               </div>
               
-              {selectedPage?.blocks.length! > 0 && (
+              {(selectedPage?.blocks.length || 0) > 0 && (
                 <div className="space-y-4">
                   <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Or select specific block:</span>
                   <div className="space-y-2">
-                    {selectedPage?.blocks.filter(b => b.content.trim()).map(b => (
+                    {selectedPage?.blocks.filter(b => (b.content || '').toString().trim()).map(b => (
                       <button 
                         key={b.id}
-                        onClick={() => onSelect(selectedPageId, b.id, 'live')}
+                        onClick={() => { onSelect(selectedPageId!, b.id, 'live'); onClose(); }}
                         className="w-full text-left p-4 rounded-2xl bg-zinc-50/50 dark:bg-zinc-900/30 border border-transparent hover:border-cyan-500/20 transition-all text-sm text-zinc-600 dark:text-zinc-400 truncate font-medium"
                       >
                         {b.type.toUpperCase()}: {b.content}
