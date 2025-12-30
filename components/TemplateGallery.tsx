@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { TEMPLATES } from '../utils/templates';
 
@@ -23,7 +24,7 @@ const TemplateSkeleton = ({ type }: { type: string }) => {
     );
   }
   
-  if (type.includes('db') || type.includes('habit') || type.includes('goals')) {
+  if (type.includes('db') || type.includes('habit') || type.includes('goals') || type.includes('okr')) {
     return (
       <div className="p-6 h-full space-y-5">
         <div className="flex gap-3 border-b border-zinc-100 dark:border-zinc-800 pb-4">
@@ -68,9 +69,9 @@ export const TemplateGallery: React.FC<TemplateGalleryProps> = ({ onSelect, onCl
   const categories = ['All', 'Systems', 'Planning', 'Engineering'];
   
   const getCategory = (key: string) => {
-    if (['tpl:kanban_board', 'tpl:project_db', 'tpl:habit'].includes(key)) return 'Systems';
-    if (['tpl:daily', 'tpl:meeting', 'tpl:goals'].includes(key)) return 'Planning';
-    if (['tpl:webdev', 'tpl:python_lab'].includes(key)) return 'Engineering';
+    if (['tpl:project_db', 'tpl:habit', 'tpl:kanban_board', 'tpl:sop_document'].includes(key)) return 'Systems';
+    if (['tpl:daily', 'tpl:okr_engine', 'tpl:project_mgmt'].includes(key)) return 'Planning';
+    if (['tpl:webdev', 'tpl:python_lab', 'tpl:prd_blueprint'].includes(key)) return 'Engineering';
     return 'Systems';
   };
 

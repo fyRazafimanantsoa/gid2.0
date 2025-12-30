@@ -16,7 +16,6 @@ const App: React.FC = () => {
   const [pages, setPages] = useState<Page[]>([]);
   const [activePageId, setActivePageId] = useState<string | null>(null);
   const [secondaryPageId, setSecondaryPageId] = useState<string | null>(null);
-  const [isSplitPinned, setIsSplitPinned] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -44,10 +43,6 @@ const App: React.FC = () => {
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [toasts, setToasts] = useState<{ id: string; message: string; type: 'success' | 'error' | 'undo'; onUndo?: () => void }[]>([]);
 
-  // Recovery System
-  const [recentlyDeleted, setRecentlyDeleted] = useState<{ page: Page; index: number } | null>(null);
-  const [history, setHistory] = useState<string[]>([]); // Page ID history
-
   const [darkMode, setDarkMode] = useState(() => {
     return (settings.theme === 'dark' || (settings.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches));
   });
@@ -60,7 +55,8 @@ const App: React.FC = () => {
       blocks: blocks || [
         { id: Math.random().toString(36).substr(2, 9), type: 'text', content: '' }
       ],
-      updatedAt: Date.now()
+      updatedAt: Date.now(),
+      layout: 'standard'
     };
   }, []);
 
@@ -100,7 +96,7 @@ const App: React.FC = () => {
         setActivePageId(loadedPages[0].id);
       } else {
         const firstPage = createNewPage('Workspace', [
-          { id: 'start1', type: 'heading', content: 'Begin your journey' },
+          { id: 'start1', type: 'h1', content: 'Begin your journey' },
           { id: 'start2', type: 'text', content: 'Focus your thoughts here. Use "/" to add blocks.' }
         ]);
         setPages([firstPage]);
@@ -127,52 +123,6 @@ const App: React.FC = () => {
     }
   }, [darkMode]);
 
-  // Track History
-  useEffect(() => {
-    if (activePageId) {
-      setHistory(prev => {
-        if (prev[prev.length - 1] === activePageId) return prev;
-        return [...prev.slice(-10), activePageId];
-      });
-    }
-  }, [activePageId]);
-
-  // Global Keybindings
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-      const cmd = isMac ? e.metaKey : e.ctrlKey;
-
-      if (cmd && e.key === 'k') { e.preventDefault(); setShowPalette(true); }
-      if (cmd && e.key === 'n') { e.preventDefault(); handleAddPage(); }
-      if (cmd && e.key === '/') { e.preventDefault(); setShowHelp(prev => !prev); }
-      if (cmd && e.key === ',') { e.preventDefault(); setShowSettings(true); }
-      
-      // History Nav
-      if (cmd && e.key === '[') {
-        e.preventDefault();
-        const idx = pages.findIndex(p => p.id === activePageId);
-        if (idx > 0) setActivePageId(pages[idx - 1].id);
-      }
-      if (cmd && e.key === ']') {
-        e.preventDefault();
-        const idx = pages.findIndex(p => p.id === activePageId);
-        if (idx < pages.length - 1) setActivePageId(pages[idx + 1].id);
-      }
-
-      if (e.key === 'Escape') {
-        setShowGallery(false);
-        setShowPalette(false);
-        setShowHelp(false);
-        setShowSettings(false);
-        setSecondaryPageId(null);
-        setDeleteTargetId(null);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activePageId, pages]);
-
   const handleAddPage = () => {
     const newPage = createNewPage();
     setPages(prev => [newPage, ...prev]);
@@ -197,32 +147,30 @@ const App: React.FC = () => {
     addToast(`Deployed: ${template.title}`, 'success');
   };
 
-  const undoDeletion = useCallback(() => {
-    if (!recentlyDeleted) return;
-    const { page, index } = recentlyDeleted;
-    setPages(prev => {
-      const next = [...prev];
-      next.splice(index, 0, page);
-      return next;
-    });
-    setActivePageId(page.id);
-    setRecentlyDeleted(null);
-    addToast('Context restored', 'success');
-  }, [recentlyDeleted, addToast]);
-
   const executeDeletion = (id: string) => {
     const index = pages.findIndex(p => p.id === id);
     if (index === -1) return;
     
     const pageToDelete = pages[index];
-    setRecentlyDeleted({ page: pageToDelete, index });
-    
     const nextPages = pages.filter(p => p.id !== id);
     setPages(nextPages.length === 0 ? [createNewPage('Workspace')] : nextPages);
     
     if (activePageId === id) setActivePageId(nextPages[0]?.id || null);
+    if (secondaryPageId === id) setSecondaryPageId(null);
     setDeleteTargetId(null);
-    addToast('Context purged', 'undo', undoDeletion);
+
+    const handleRecover = () => {
+      setPages(current => {
+        if (current.find(p => p.id === pageToDelete.id)) return current;
+        const restored = [...current];
+        restored.splice(index, 0, pageToDelete);
+        return restored;
+      });
+      setActivePageId(pageToDelete.id);
+      addToast('Context restored successfully', 'success');
+    };
+
+    addToast(`"${pageToDelete.title || 'Untitled'}" purged`, 'undo', handleRecover);
   };
 
   const handleUpdatePage = (updatedPage: Page) => {
@@ -270,7 +218,6 @@ const App: React.FC = () => {
 
       <main className="flex-1 flex flex-col lg:flex-row lg:ml-72 relative">
         <div 
-          key={activePageId}
           className={`flex-1 overflow-y-auto h-full scroll-smooth transition-all duration-500 ${secondaryPageId ? 'lg:w-1/2 w-full border-r border-zinc-100 dark:border-zinc-800' : 'w-full'}`}
         >
           {activePage ? (
@@ -279,7 +226,10 @@ const App: React.FC = () => {
               page={activePage}
               allPages={pages}
               onUpdate={handleUpdatePage}
-              onOpenSplit={setSecondaryPageId}
+              onOpenSplit={(id) => {
+                if (id === activePageId) return;
+                setSecondaryPageId(id);
+              }}
               onJumpTo={setActivePageId}
               onDelete={setDeleteTargetId}
               darkMode={darkMode}
@@ -299,10 +249,15 @@ const App: React.FC = () => {
             <div className="sticky top-4 right-4 z-[60] flex justify-end p-4">
               <div className="flex gap-2">
                 <button 
-                  onClick={() => setIsSplitPinned(!isSplitPinned)}
-                  className={`p-2 rounded-xl border backdrop-blur-md transition-all ${isSplitPinned ? 'bg-cyan-500 text-white border-cyan-400 shadow-lg' : 'bg-white/80 dark:bg-zinc-900/80 text-zinc-400 border-zinc-100 dark:border-zinc-800'}`}
+                  onClick={() => {
+                    const temp = activePageId;
+                    setActivePageId(secondaryPageId);
+                    setSecondaryPageId(temp);
+                  }}
+                  title="Swap Views"
+                  className="p-2 bg-white/80 dark:bg-zinc-900/80 text-zinc-400 border border-zinc-100 dark:border-zinc-800 rounded-xl backdrop-blur-md hover:text-cyan-500 transition-all"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
                 </button>
                 <button 
                   onClick={() => setSecondaryPageId(null)}
@@ -317,6 +272,10 @@ const App: React.FC = () => {
               allPages={pages} 
               onUpdate={handleUpdatePage} 
               onJumpTo={setActivePageId} 
+              onOpenSplit={(id) => {
+                if (id === secondaryPageId) return;
+                setSecondaryPageId(id);
+              }}
               isSecondary 
               darkMode={darkMode}
               onToggleDarkMode={() => setDarkMode(!darkMode)}

@@ -79,7 +79,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     className="flex flex-col items-center justify-center p-4 bg-zinc-50 dark:bg-zinc-900/30 border border-zinc-100 dark:border-zinc-800 rounded-3xl transition-all group hover:bg-white dark:hover:bg-zinc-800 hover:shadow-xl active:scale-95"
                   >
                     <span className="text-2xl mb-1 transition-transform group-hover:scale-125">{tpl.icon}</span>
-                    <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest text-center">{tpl.title}</span>
+                    <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest text-center leading-tight">{tpl.title}</span>
                   </button>
                 ))}
               </div>

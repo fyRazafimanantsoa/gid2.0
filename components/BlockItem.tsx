@@ -21,15 +21,17 @@ interface BlockItemProps {
   onDrop: () => void;
   onLinkTo: () => void;
   onJumpToSource: (pid: string) => void;
+  onPinToSplit?: (pid: string) => void;
 }
 
 export const BlockItem: React.FC<BlockItemProps> = ({ 
-  block, isFocused, allPages, anyBlockFocused, onUpdate, onKeyDown, onFocus, onDelete, onDragStart, onDrop, onLinkTo, onJumpToSource
+  block, isFocused, allPages, anyBlockFocused, onUpdate, onKeyDown, onFocus, onDelete, onDragStart, onDrop, onLinkTo, onJumpToSource, onPinToSplit
 }) => {
   const editableRef = useRef<HTMLTextAreaElement>(null);
   const [showActions, setShowActions] = useState(false);
+  const [isHoveringLink, setIsHoveringLink] = useState(false);
 
-  const textTypes = ['text', 'heading', 'todo', 'callout', 'embed', 'quote', 'checkbox', 'math', 'date', 'time', 'emoji'];
+  const textTypes = ['text', 'heading', 'h1', 'h2', 'h3', 'bullet', 'number', 'todo', 'callout', 'embed', 'quote', 'checkbox', 'math', 'date', 'time', 'emoji'];
 
   useEffect(() => {
     if (isFocused && editableRef.current && textTypes.includes(block.type)) {
@@ -50,7 +52,26 @@ export const BlockItem: React.FC<BlockItemProps> = ({
     
     switch (block.type) {
       case 'heading':
-        return <textarea ref={editableRef} value={block.content} onKeyDown={onKeyDown} onChange={handleInput} onFocus={onFocus} placeholder="Context Header" className={`${commonClasses} text-2xl font-black text-zinc-900 dark:text-zinc-50 tracking-tighter`} rows={1} />;
+      case 'h1':
+        return <textarea ref={editableRef} value={block.content} onKeyDown={onKeyDown} onChange={handleInput} onFocus={onFocus} placeholder="Heading 1" className={`${commonClasses} text-3xl font-black text-zinc-900 dark:text-zinc-50 tracking-tighter`} rows={1} />;
+      case 'h2':
+        return <textarea ref={editableRef} value={block.content} onKeyDown={onKeyDown} onChange={handleInput} onFocus={onFocus} placeholder="Heading 2" className={`${commonClasses} text-2xl font-black text-zinc-800 dark:text-zinc-100 tracking-tight`} rows={1} />;
+      case 'h3':
+        return <textarea ref={editableRef} value={block.content} onKeyDown={onKeyDown} onChange={handleInput} onFocus={onFocus} placeholder="Heading 3" className={`${commonClasses} text-xl font-bold text-zinc-700 dark:text-zinc-200`} rows={1} />;
+      case 'bullet':
+        return (
+          <div className="flex items-start gap-3">
+            <span className="mt-1.5 text-zinc-400 font-bold">•</span>
+            <textarea ref={editableRef} value={block.content} onKeyDown={onKeyDown} onChange={handleInput} onFocus={onFocus} placeholder="List item..." className={`${commonClasses} text-zinc-800 dark:text-zinc-100`} rows={1} />
+          </div>
+        );
+      case 'number':
+        return (
+          <div className="flex items-start gap-3">
+            <span className="mt-1.5 text-zinc-400 font-bold text-[10px]">1.</span>
+            <textarea ref={editableRef} value={block.content} onKeyDown={onKeyDown} onChange={handleInput} onFocus={onFocus} placeholder="Numbered item..." className={`${commonClasses} text-zinc-800 dark:text-zinc-100`} rows={1} />
+          </div>
+        );
       case 'todo':
       case 'checkbox':
         return (
@@ -105,11 +126,11 @@ export const BlockItem: React.FC<BlockItemProps> = ({
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 8h16M4 16h16" /></svg>
         </button>
         {(isActive || showActions) && (
-          <div className="flex flex-col gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-xl p-1 shadow-xl animate-in fade-in slide-in-from-left-2 duration-200">
+          <div className="flex flex-col gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-1 shadow-xl animate-in fade-in slide-in-from-left-2 duration-200">
             <button 
               onClick={(e) => { e.stopPropagation(); onLinkTo(); }} 
               className={`p-1.5 rounded-lg transition-colors ${block.linkMetadata ? 'text-cyan-500 bg-cyan-500/10' : 'text-zinc-400 hover:text-cyan-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'}`}
-              title="Link to Context"
+              title="Synapse Bridge"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 105.656 5.656l1.1-1.1"/></svg>
             </button>
@@ -125,13 +146,62 @@ export const BlockItem: React.FC<BlockItemProps> = ({
       </div>
 
       {block.linkMetadata && (
-        <div className="absolute -top-3 left-4 flex items-center gap-2">
+        <div 
+          className="absolute -top-3 left-4 flex items-center gap-2 z-10"
+          onMouseEnter={() => setIsHoveringLink(true)}
+          onMouseLeave={() => setIsHoveringLink(false)}
+        >
            <div 
              onClick={() => onJumpToSource(block.linkMetadata!.sourcePageId)}
-             className="px-2 py-0.5 bg-cyan-500 text-white rounded-md text-[7px] font-black uppercase tracking-widest cursor-pointer hover:scale-105 transition-transform shadow-lg"
+             className="px-2 py-0.5 bg-cyan-500 text-white rounded-md text-[7px] font-black uppercase tracking-widest cursor-pointer hover:scale-105 transition-transform shadow-lg flex items-center gap-1.5"
            >
              Synapse: {linkedPage?.title || 'Unknown Context'}
+             {isHoveringLink && (
+               <div className="flex items-center gap-1 ml-1 border-l border-white/20 pl-1">
+                 <button 
+                   onClick={(e) => { e.stopPropagation(); onPinToSplit?.(block.linkMetadata!.sourcePageId); }}
+                   className="hover:text-cyan-200"
+                   title="Pin to Side"
+                 >
+                   <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg>
+                 </button>
+                 <button 
+                   onClick={(e) => { e.stopPropagation(); onUpdate({ linkMetadata: undefined }); }}
+                   className="hover:text-red-200"
+                   title="Unlink"
+                 >
+                   <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12"/></svg>
+                 </button>
+               </div>
+             )}
            </div>
+           
+           {isHoveringLink && linkedPage && (
+             <div className="absolute top-6 left-0 w-80 p-6 bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-[2rem] shadow-[0_30px_60px_-15px_rgba(0,0,0,0.3)] dark:shadow-black animate-in fade-in zoom-in duration-200 z-[100] pointer-events-auto cursor-default">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-[8px] font-black uppercase text-cyan-500 tracking-[0.3em]">Bridge Intelligence</div>
+                  <button 
+                    onClick={() => onPinToSplit?.(linkedPage.id)}
+                    className="text-[8px] font-black uppercase text-zinc-400 hover:text-cyan-500 transition-colors"
+                  >
+                    Open in Split →
+                  </button>
+                </div>
+                <div className="text-[13px] font-black text-zinc-900 dark:text-zinc-100 truncate mb-3">{linkedPage.title}</div>
+                <div className="text-[10px] text-zinc-500 dark:text-zinc-400 line-clamp-4 leading-relaxed bg-zinc-50 dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800">
+                  {linkedPage.blocks.find(b => b.content.trim() && b.type === 'text')?.content || linkedPage.blocks[0]?.content || 'Empty Context Node'}
+                </div>
+                <div className="mt-4 flex items-center justify-between">
+                  <span className="text-[7px] font-black text-zinc-400 uppercase tracking-widest">{linkedPage.blocks.length} Total Blocks</span>
+                  <button 
+                    onClick={() => onJumpToSource(linkedPage.id)}
+                    className="px-4 py-2 bg-zinc-900 dark:bg-white text-white dark:text-black text-[8px] font-black uppercase tracking-widest rounded-xl hover:scale-105 transition-all"
+                  >
+                    Jump to Node
+                  </button>
+                </div>
+             </div>
+           )}
         </div>
       )}
 

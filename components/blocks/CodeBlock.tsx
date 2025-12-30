@@ -1,9 +1,18 @@
-import React, { useState, useEffect, useRef } from 'react';
+
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+
+type SupportedLanguage = 'javascript' | 'python' | 'html';
+
+interface WebContent {
+  html: string;
+  css: string;
+  js: string;
+}
 
 interface CodeBlockProps {
   content: string;
   metadata?: {
-    language: 'javascript' | 'python' | 'html';
+    language: SupportedLanguage;
   };
   onChange: (content: string, metadata?: any) => void;
   onKeyDown?: (e: React.KeyboardEvent) => void;
@@ -17,19 +26,51 @@ declare global {
 }
 
 export const CodeBlock: React.FC<CodeBlockProps> = ({ content, metadata, onChange, onKeyDown, onFocus }) => {
-  const language = metadata?.language;
+  const [language, setLanguage] = useState<SupportedLanguage>(metadata?.language || 'javascript');
   const [output, setOutput] = useState<string>('');
   const [isRunning, setIsRunning] = useState(false);
   const [pyodide, setPyodide] = useState<any>(null);
   const [isExpanded, setIsExpanded] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(45); // Start closer to 50/50
-  const editorRef = useRef<HTMLTextAreaElement>(null);
+  const [sidebarWidth, setSidebarWidth] = useState(45);
+  const [activeWebTab, setActiveWebTab] = useState<'js' | 'html' | 'css'>('js');
+  
+  // State for the web environment (CodePen style)
+  const webData = useMemo<WebContent>(() => {
+    if (language !== 'javascript') return { html: '', css: '', js: content };
+    try {
+      const parsed = JSON.parse(content);
+      if (parsed && typeof parsed === 'object' && 'js' in parsed) {
+        return { 
+          html: parsed.html || '', 
+          css: parsed.css || '', 
+          js: parsed.js || '' 
+        };
+      }
+    } catch (e) {}
+    return { html: '', css: '', js: content };
+  }, [content, language]);
 
+  const updateWebData = (updates: Partial<WebContent>) => {
+    const next = { ...webData, ...updates };
+    onChange(JSON.stringify(next), { ...metadata, language });
+  };
+
+  useEffect(() => {
+    if (metadata?.language && metadata.language !== language) {
+      setLanguage(metadata.language);
+    }
+  }, [metadata?.language]);
+
+  // Pyodide initialization for Python
   useEffect(() => {
     if (language === 'python' && !pyodide && window.loadPyodide) {
       const initPy = async () => {
         try {
-          const p = await window.loadPyodide();
+          // Explicitly set indexURL to fix "Failed to fetch" errors during wasm loading
+          const p = await window.loadPyodide({
+            indexURL: "https://cdn.jsdelivr.net/pyodide/v0.23.4/full/"
+          });
+          
           await p.loadPackage("micropip");
           p.runPython(`
 import sys
@@ -42,201 +83,250 @@ class StringIOWrapper(io.StringIO):
 sys.stdout = StringIOWrapper()
           `);
           setPyodide(p);
-        } catch (e) {
+        } catch (e: any) {
           console.error("Pyodide init failed", e);
+          setOutput(`Pyodide Error: ${e?.message || 'Check network connection'}`);
         }
       };
       initPy();
     }
   }, [language, pyodide]);
 
-  const runCode = async () => {
-    if (!language || language === 'html') return;
-    
+  const handleLanguageChange = (newLang: SupportedLanguage) => {
+    setLanguage(newLang);
+    setOutput('');
+    // Migrate content based on source/target formats
+    if (newLang === 'javascript') {
+      const currentCode = (language === 'javascript') ? webData.js : content;
+      onChange(JSON.stringify({ ...webData, js: currentCode }), { ...metadata, language: newLang });
+    } else {
+      const currentCode = (language === 'javascript') ? webData.js : content;
+      onChange(currentCode, { ...metadata, language: newLang });
+    }
+  };
+
+  const runLogicCompiler = async () => {
+    if (language !== 'python') return;
     setIsRunning(true);
-    setOutput('Processing...');
-    
-    if (language === 'javascript') {
-      try {
-        const logs: string[] = [];
-        const customConsole = {
-          log: (...args: any[]) => logs.push(args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')),
-          error: (...args: any[]) => logs.push('ERROR: ' + args.join(' ')),
-        };
-        const runner = new Function('console', content);
-        runner(customConsole);
-        setOutput(logs.join('\n') || 'Done (no output)');
-      } catch (err: any) {
-        setOutput('Runtime Error: ' + err.message);
-      }
-    } else if (language === 'python') {
-      if (!pyodide) {
-        setOutput('Python engine booting...');
-        setIsRunning(false);
-        return;
-      }
-      try {
-        pyodide.runPython("sys.stdout = io.StringIO()");
-        await pyodide.runPythonAsync(content);
-        const stdout = pyodide.runPython("sys.stdout.getvalue()");
-        setOutput(stdout || 'Process complete.');
-      } catch (err: any) {
-        setOutput('Python Error: ' + err.message);
-      }
+    setOutput('Python Runtime: Initializing logic core...');
+    await new Promise(r => setTimeout(r, 600));
+
+    if (!pyodide) {
+      setOutput('Python Engine Error: Still booting. Please wait.');
+      setIsRunning(false);
+      return;
+    }
+    try {
+      pyodide.runPython("sys.stdout = io.StringIO()");
+      await pyodide.runPythonAsync(content);
+      const res = pyodide.runPython("sys.stdout.getvalue()");
+      setOutput(res || 'Execution finished successfully.');
+    } catch (err: any) {
+      setOutput('Python Traceback:\n' + err.message);
     }
     setIsRunning(false);
   };
 
-  const toggleExpand = () => setIsExpanded(!isExpanded);
+  const combinedPreview = useMemo(() => {
+    if (language === 'html') return content;
+    if (language === 'javascript') {
+      return `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="UTF-8">
+            <style>
+              body { font-family: sans-serif; margin: 0; background: #000; color: #fff; padding: 20px; }
+              ${webData.css}
+            </style>
+          </head>
+          <body>
+            ${webData.html || '<div style="height:50vh;display:flex;align-items:center;justify-content:center;opacity:0.2;font-size:12px;letter-spacing:0.2em;font-weight:900;">AWAITING CONTEXT</div>'}
+            <script>
+              (function() {
+                try {
+                  ${webData.js}
+                } catch (e) {
+                  const errDiv = document.createElement('div');
+                  errDiv.style.background = '#7f1d1d';
+                  errDiv.style.color = '#fecaca';
+                  errDiv.style.padding = '15px';
+                  errDiv.style.marginTop = '20px';
+                  errDiv.style.borderRadius = '10px';
+                  errDiv.style.fontSize = '12px';
+                  errDiv.style.fontFamily = 'monospace';
+                  errDiv.textContent = 'Runtime Error: ' + e.message;
+                  document.body.appendChild(errDiv);
+                }
+              })();
+            </script>
+          </body>
+        </html>
+      `;
+    }
+    return '';
+  }, [language, content, webData]);
 
-  const defaultDoc = `
-    <body style="background: #000; color: #fff; display: flex; align-items: center; justify-content: center; height: 100vh; font-family: -apple-system, sans-serif; margin: 0;">
-      <div style="text-align: center; padding: 20px; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px;">
-        <p style="font-size: 14px; font-weight: 800; letter-spacing: 0.1em; color: #22d3ee; margin-bottom: 8px;">LIVE WORKSPACE</p>
-        <p style="font-size: 11px; opacity: 0.5;">Code reflected in real-time</p>
-      </div>
-    </body>
-  `;
-
-  const renderHeader = (inOverlay: boolean = false) => {
-    const isPython = language === 'python';
-    const isWebsite = language === 'html';
+  const renderEditorArea = (type: 'js' | 'html' | 'css' | 'logic', isFull: boolean) => {
+    const val = (language === 'javascript' && type !== 'logic') ? webData[type] : content;
+    const label = type === 'logic' ? language.toUpperCase() : type.toUpperCase();
     
     return (
-      <div className={`flex items-center justify-between px-5 py-3.5 bg-zinc-950 border-b border-white/5 shrink-0 ${inOverlay ? 'h-20 px-8 bg-black shadow-2xl' : ''}`}>
-        <div className="flex items-center gap-5">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl drop-shadow-[0_0_10px_rgba(34,211,238,0.5)]">{isPython ? '🐍' : isWebsite ? '🌐' : '📜'}</span>
-            <div className="flex flex-col">
-              <span className="text-[10px] font-black uppercase tracking-[0.3em] text-white">
-                {isWebsite ? 'Interface Studio' : isPython ? 'Python Lab' : 'Logic Engine'}
-              </span>
-              <span className="text-[8px] font-bold text-zinc-500 uppercase tracking-widest mt-0.5">Local Execution Enabled</span>
-            </div>
+      <div className="flex flex-col h-full relative group">
+        {(isFull || (language === 'javascript' && !isExpanded)) && (
+          <div className="px-5 py-3 bg-zinc-950/80 border-b border-white/5 flex items-center justify-between shrink-0 sticky top-0 z-10 backdrop-blur-md">
+            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-cyan-500/60">{label} EDITOR</span>
           </div>
-        </div>
-
-        <div className="flex gap-4 items-center">
-          {(language === 'javascript' || language === 'python') && (
-            <button
-              onClick={(e) => { e.stopPropagation(); runCode(); }}
-              disabled={isRunning}
-              className={`px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                inOverlay 
-                ? 'bg-white text-black hover:bg-zinc-200' 
-                : 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 hover:bg-cyan-500/20'
-              }`}
-            >
-              {isRunning ? 'Running...' : 'Compile & Execute'}
-            </button>
-          )}
-          
-          <button
-            onClick={(e) => { e.stopPropagation(); toggleExpand(); }}
-            className={`flex items-center gap-2 p-2.5 rounded-2xl transition-all ${inOverlay ? 'text-zinc-500 hover:text-white hover:bg-white/5 px-5' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}
-          >
-            {isExpanded ? (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
-            ) : (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5"/></svg>
-            )}
-          </button>
-        </div>
-      </div>
-    );
-  };
-
-  const renderContent = (isLarge: boolean) => {
-    const isWebsite = language === 'html';
-    
-    return (
-      <div className={`flex flex-col lg:flex-row flex-1 overflow-hidden h-full ${isLarge ? 'bg-black' : 'min-h-[550px] bg-zinc-950'}`}>
-        {/* Editor (Code Input) */}
-        <div 
-          className="flex flex-col relative overflow-hidden border-r border-white/5"
-          style={{ flex: `1 1 ${100 - sidebarWidth}%` }}
-        >
-          <textarea
-            ref={isLarge ? null : editorRef}
-            value={content}
-            onChange={(e) => onChange(e.target.value, metadata)}
-            onKeyDown={onKeyDown}
-            onFocus={onFocus}
-            placeholder={isWebsite ? "<!-- Construct HTML/CSS context... -->" : language === 'python' ? "# Python logic implementation..." : "// Script execution path..."}
-            className={`w-full h-full bg-transparent border-none focus:ring-0 resize-none p-8 code-font text-[13px] leading-relaxed overflow-y-auto text-zinc-300 custom-scrollbar selection:bg-cyan-500/20`}
-            spellCheck={false}
-          />
-        </div>
-
-        {/* Output/Preview (The 'Next-to-code' area) */}
-        <div 
-          className={`bg-black flex flex-col shrink-0 overflow-hidden ${isWebsite ? 'bg-white' : 'border-l border-white/5'}`}
-          style={{ flex: `0 0 ${sidebarWidth}%` }}
-        >
-          {isWebsite ? (
-            <div className="flex flex-col h-full">
-              <div className="h-10 bg-zinc-100/80 border-b border-zinc-200 flex items-center px-5 gap-4 shrink-0">
-                <div className="flex gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-full bg-zinc-300" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-zinc-300" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-zinc-300" />
-                </div>
-                <span className="text-[9px] font-black text-zinc-400 uppercase tracking-[0.2em] ml-2">Sandbox Output</span>
-                <div className="ml-auto flex gap-4">
-                  <button 
-                    onClick={() => setSidebarWidth(sidebarWidth === 45 ? 65 : 45)}
-                    className="text-[9px] font-black text-zinc-400 hover:text-cyan-600 transition-colors uppercase tracking-widest"
-                  >
-                    {sidebarWidth === 45 ? 'Expand View' : 'Default View'}
-                  </button>
-                </div>
-              </div>
-              <div className="flex-1 relative overflow-hidden bg-white">
-                <iframe
-                  key={isLarge ? 'expanded' : 'normal'}
-                  title="preview"
-                  srcDoc={content || defaultDoc}
-                  className="absolute inset-0 w-full h-full border-none bg-white"
-                  sandbox="allow-scripts allow-modals"
-                />
-              </div>
-            </div>
-          ) : language ? (
-            <div className="flex flex-col h-full p-8 gap-5 bg-black">
-              <div className="flex items-center justify-between border-b border-white/10 pb-4">
-                <span className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em]">Runtime Console</span>
-                <div className="flex gap-5">
-                  <button 
-                    onClick={() => setSidebarWidth(sidebarWidth === 45 ? 65 : 45)}
-                    className="text-[9px] text-zinc-600 hover:text-cyan-400 transition-colors uppercase font-black tracking-widest"
-                  >
-                    Resize Workspace
-                  </button>
-                  <button onClick={() => setOutput('')} className="text-[9px] text-zinc-600 hover:text-white transition-colors uppercase font-black tracking-widest">Wipe Output</button>
-                </div>
-              </div>
-              <pre className="flex-1 code-font text-[12.5px] text-cyan-400/90 overflow-auto whitespace-pre-wrap select-text custom-scrollbar py-2">
-                {output || '> System standby. Awaiting execution signal...'}
-              </pre>
-            </div>
-          ) : null}
-        </div>
+        )}
+        <textarea
+          value={val}
+          onChange={(e) => {
+            if (language === 'javascript' && type !== 'logic') updateWebData({ [type]: e.target.value });
+            else onChange(e.target.value, { ...metadata, language });
+          }}
+          placeholder={`Initialize ${label} context...`}
+          className="flex-1 bg-transparent border-none focus:ring-0 resize-none p-8 code-font text-[14px] text-zinc-300 leading-relaxed custom-scrollbar selection:bg-cyan-500/20"
+          spellCheck={false}
+          onKeyDown={onKeyDown}
+          onFocus={onFocus}
+        />
       </div>
     );
   };
 
   return (
-    <div className="relative group/block">
-      <div className={`flex flex-col my-10 bg-zinc-950 rounded-3xl shadow-2xl border border-white/5 overflow-hidden transition-all duration-700 ${isExpanded ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100 group-hover/block:border-cyan-500/20'}`}>
-        {renderHeader(false)}
-        {renderContent(false)}
+    <div className="relative my-12 group/block">
+      {/* Compact Mode */}
+      <div className={`flex flex-col bg-zinc-950 rounded-[3rem] border border-white/5 overflow-hidden transition-all duration-700 shadow-2xl ${isExpanded ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100 group-hover/block:border-cyan-500/30'}`}>
+        
+        <div className="flex items-center justify-between px-8 py-5 bg-zinc-950 border-b border-white/5">
+          <div className="flex items-center gap-6">
+            <div className="relative">
+              <select 
+                value={language}
+                onChange={(e) => handleLanguageChange(e.target.value as SupportedLanguage)}
+                className="appearance-none bg-zinc-900 border border-white/10 rounded-2xl px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-cyan-500 focus:ring-0 cursor-pointer pr-12 transition-all hover:border-cyan-500/40"
+              >
+                <option value="javascript">WEB LAB (JS/HTML/CSS)</option>
+                <option value="python">PYTHON ENGINE</option>
+                <option value="html">HTML SNIPPET</option>
+              </select>
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-600 text-[10px]">
+                ▼
+              </div>
+            </div>
+
+            {language === 'javascript' && (
+              <div className="flex gap-1 bg-zinc-900/50 p-1.5 rounded-2xl border border-white/5">
+                {(['js', 'html', 'css'] as const).map(t => (
+                  <button 
+                    key={t}
+                    onClick={() => setActiveWebTab(t)}
+                    className={`px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${activeWebTab === t ? 'bg-cyan-500 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-4 items-center">
+            {language === 'python' && (
+              <button
+                onClick={runLogicCompiler}
+                disabled={isRunning}
+                className="flex items-center gap-3 px-6 py-2.5 bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-cyan-500/20 transition-all active:scale-95"
+              >
+                {isRunning ? 'EXECUTING' : '▶ RUN LOGIC'}
+              </button>
+            )}
+            <button onClick={() => setIsExpanded(true)} className="p-3 bg-white/5 rounded-2xl text-zinc-500 hover:text-white transition-all shadow-sm">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l-5-5m11 5v-4m0 4h-4m4 0l-5-5"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div className="flex flex-col lg:flex-row h-[550px]">
+          <div className="flex-1 border-r border-white/5 overflow-hidden">
+            {language === 'javascript' ? renderEditorArea(activeWebTab, false) : renderEditorArea('logic', false)}
+          </div>
+          <div className="w-full lg:w-[45%] bg-black overflow-hidden shrink-0">
+             {(language === 'javascript' || language === 'html') ? (
+               <div className="w-full h-full bg-white relative">
+                  <iframe title="mini-preview" srcDoc={combinedPreview} className="absolute inset-0 w-full h-full border-none" sandbox="allow-scripts" />
+               </div>
+             ) : (
+               <div className="p-10 code-font h-full flex flex-col bg-zinc-950/20">
+                  <span className="text-[10px] font-black text-zinc-700 uppercase tracking-[0.3em] block mb-6">INTELLIGENCE TERMINAL</span>
+                  <pre className="flex-1 text-[13px] text-cyan-400/60 overflow-auto whitespace-pre-wrap selection:bg-cyan-500/10">{output || '> Awaiting signal...'}</pre>
+               </div>
+             )}
+          </div>
+        </div>
       </div>
 
+      {/* Expanded Mode: CodePen Layout for JS */}
       {isExpanded && (
-        <div className="fixed inset-0 z-[200] bg-black flex flex-col animate-in fade-in zoom-in duration-300 overflow-hidden">
-          {renderHeader(true)}
+        <div className="fixed inset-0 z-[5000] bg-black flex flex-col animate-in fade-in zoom-in duration-500 overflow-hidden">
+          <div className="flex items-center justify-between px-12 h-24 border-b border-white/5 shrink-0 bg-zinc-950">
+            <div className="flex items-center gap-10">
+               <span className="text-[13px] font-black uppercase tracking-[0.6em] text-cyan-500">IMMERSIVE {language === 'javascript' ? 'WEB LAB' : 'LOGIC ENGINE'}</span>
+               <div className="flex items-center gap-2 px-6 py-2 bg-zinc-900 rounded-2xl text-[10px] font-black uppercase tracking-widest text-zinc-500 border border-white/5">
+                 <span className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse mr-2"></span>
+                 STATUS: SYNCED
+               </div>
+            </div>
+            <div className="flex gap-6 items-center">
+              {language === 'python' && (
+                <button onClick={runLogicCompiler} className="px-10 py-3.5 bg-white text-black rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-cyan-500 hover:text-white transition-all shadow-[0_0_30px_rgba(255,255,255,0.1)] active:scale-95">EXECUTE PYTHON SCRIPT</button>
+              )}
+              <button onClick={() => setIsExpanded(false)} className="w-14 h-14 flex items-center justify-center bg-white/5 text-zinc-500 hover:text-white rounded-2xl transition-all hover:bg-white/10">
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
+          </div>
+
           <div className="flex-1 flex overflow-hidden">
-             {renderContent(true)}
+            {/* Editor Sidebar */}
+            <div className="flex flex-col flex-1 border-r border-white/10 overflow-hidden bg-zinc-950/50">
+              {language === 'javascript' ? (
+                <div className="grid grid-rows-3 h-full divide-y divide-white/10">
+                   {renderEditorArea('html', true)}
+                   {renderEditorArea('css', true)}
+                   {renderEditorArea('js', true)}
+                </div>
+              ) : (
+                renderEditorArea('logic', true)
+              )}
+            </div>
+
+            {/* Preview Panel */}
+            <div className="bg-black flex flex-col shrink-0 overflow-hidden border-l border-white/10" style={{ flex: `0 0 ${sidebarWidth}%` }}>
+               {(language === 'javascript' || language === 'html') ? (
+                  <div className="flex flex-col h-full bg-white">
+                     <div className="h-14 bg-zinc-50 flex items-center px-10 justify-between shrink-0 border-b border-zinc-200">
+                        <span className="text-[11px] font-black text-zinc-400 uppercase tracking-widest">LIVE WORKSPACE PREVIEW</span>
+                        <div className="flex items-center gap-6">
+                          <button onClick={() => setSidebarWidth(sidebarWidth === 45 ? 65 : 45)} className="text-[10px] font-black text-zinc-400 hover:text-cyan-600 uppercase tracking-widest border border-zinc-200 px-4 py-1.5 rounded-xl transition-all">
+                            {sidebarWidth === 45 ? 'MAXIMIZE VIEW' : 'RESTORE VIEW'}
+                          </button>
+                        </div>
+                     </div>
+                     <div className="flex-1 relative">
+                        <iframe title="expanded-preview" srcDoc={combinedPreview} className="absolute inset-0 w-full h-full border-none" sandbox="allow-scripts" />
+                     </div>
+                  </div>
+               ) : (
+                  <div className="flex flex-col h-full p-14 bg-zinc-950/20">
+                    <div className="flex items-center justify-between mb-10 border-b border-white/5 pb-6">
+                      <span className="text-[11px] font-black text-zinc-600 uppercase tracking-[0.5em]">SYSTEM LOGS</span>
+                      <button onClick={() => setOutput('')} className="text-[9px] font-black text-zinc-500 hover:text-white uppercase tracking-widest">Wipe Output</button>
+                    </div>
+                    <pre className="flex-1 code-font text-[15px] text-cyan-400/80 overflow-auto whitespace-pre-wrap leading-relaxed selection:bg-cyan-500/20">{output || '> System standby. Awaiting logic execution sequence...'}</pre>
+                  </div>
+               )}
+            </div>
           </div>
         </div>
       )}

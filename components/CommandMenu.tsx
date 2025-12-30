@@ -19,18 +19,24 @@ interface CommandItem {
 }
 
 const COMMANDS: CommandItem[] = [
-  // Basic Tier
-  { type: 'text', label: 'Draft Text', icon: '📝', category: 'Basic', description: 'Plain text for rapid notes', color: 'bg-zinc-100' },
-  { type: 'heading', label: 'Heading', icon: 'H1', category: 'Basic', description: 'Large context header', color: 'bg-zinc-100' },
-  { type: 'todo', label: 'Action Item', icon: '✅', category: 'Basic', description: 'Task with checkbox', color: 'bg-green-100' },
-  { type: 'checkbox', label: 'Checkbox', icon: '🔘', category: 'Basic', description: 'Standalone toggle', color: 'bg-zinc-100' },
-  { type: 'quote', label: 'Quote', icon: '💬', category: 'Basic', description: 'Block quotation', color: 'bg-zinc-100' },
-  { type: 'divider', label: 'Divider', icon: '➖', category: 'Basic', description: 'Visual separation line', color: 'bg-zinc-100' },
+  // Typography Tier
+  { type: 'text', label: 'Plain Text', icon: '📝', category: 'Typography', description: 'Basic text block', color: 'bg-zinc-100' },
+  { type: 'h1', label: 'Heading 1', icon: 'H1', category: 'Typography', description: 'Large context header', color: 'bg-zinc-100' },
+  { type: 'h2', label: 'Heading 2', icon: 'H2', category: 'Typography', description: 'Medium context header', color: 'bg-zinc-100' },
+  { type: 'h3', label: 'Heading 3', icon: 'H3', category: 'Typography', description: 'Small context header', color: 'bg-zinc-100' },
+  { type: 'quote', label: 'Quote', icon: '💬', category: 'Typography', description: 'Block quotation', color: 'bg-zinc-100' },
+  { type: 'callout', label: 'Callout', icon: '💡', category: 'Typography', description: 'Important info box', color: 'bg-yellow-100' },
+
+  // List Tier
+  { type: 'todo', label: 'Action Item', icon: '✅', category: 'Lists', description: 'Task with checkbox', color: 'bg-green-100' },
+  { type: 'bullet', label: 'Bullet List', icon: '•', category: 'Lists', description: 'Unordered list item', color: 'bg-zinc-100' },
+  { type: 'number', label: 'Numbered List', icon: '1.', category: 'Lists', description: 'Ordered list item', color: 'bg-zinc-100' },
+  { type: 'checkbox', label: 'Checkbox', icon: '🔘', category: 'Lists', description: 'Standalone toggle', color: 'bg-zinc-100' },
   
   // Advanced Tier
-  { type: 'callout', label: 'Callout', icon: '💡', category: 'Advanced', description: 'Important info box', color: 'bg-yellow-100' },
   { type: 'math', label: 'Math Formula', icon: '∑', category: 'Advanced', description: 'LaTeX mathematical notation', color: 'bg-blue-100' },
   { type: 'emoji', label: 'Emoji', icon: '😊', category: 'Advanced', description: 'Insert visual symbol', color: 'bg-pink-100' },
+  { type: 'divider', label: 'Divider', icon: '➖', category: 'Advanced', description: 'Visual separation line', color: 'bg-zinc-100' },
 
   // Media Tier
   { type: 'image', label: 'Image', icon: '🖼️', category: 'Media', description: 'Embed visual context', color: 'bg-purple-100' },
@@ -45,9 +51,9 @@ const COMMANDS: CommandItem[] = [
   { type: 'project_os', label: 'Project OS', icon: '🛰️', category: 'Systems', description: 'Integrated mission architecture', color: 'bg-blue-100' },
 
   // Engineering Tier
-  { type: 'code:python', label: 'Python Lab', icon: '🐍', category: 'Engineering', description: 'In-browser logic execution', color: 'bg-yellow-50' },
-  { type: 'code:html', label: 'Web Preview', icon: '🌐', category: 'Engineering', description: 'Live UI sandbox', color: 'bg-blue-50' },
-  { type: 'code:javascript', label: 'JS Sandbox', icon: '📜', category: 'Engineering', description: 'Scripting engine', color: 'bg-yellow-50' },
+  { type: 'code:javascript', label: 'Web Lab (JS/HTML/CSS)', icon: '📜', category: 'Engineering', description: 'CodePen-style environment', color: 'bg-yellow-50' },
+  { type: 'code:python', label: 'Python Engine', icon: '🐍', category: 'Engineering', description: 'Local Python execution', color: 'bg-yellow-50' },
+  { type: 'code:html', label: 'HTML Snippet', icon: '🌐', category: 'Engineering', description: 'HTML preview block', color: 'bg-yellow-50' },
 
   // Utility Tier
   { type: 'date', label: 'Date', icon: '📅', category: 'Utility', description: 'Calendar reference', color: 'bg-zinc-50' },
@@ -96,7 +102,6 @@ export const CommandMenu: React.FC<CommandMenuProps> = ({ onSelect, onClose, pos
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    // Prevent '/' from being typed into the search bar
     if (value.includes('/')) {
       setSearch(value.replace(/\//g, ''));
     } else {
@@ -123,7 +128,6 @@ export const CommandMenu: React.FC<CommandMenuProps> = ({ onSelect, onClose, pos
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [filtered, selectedIndex]);
 
-  // Sync scroll with selectedIndex
   useEffect(() => {
     if (scrollRef.current) {
       const selectedElement = scrollRef.current.querySelector('[data-selected="true"]');

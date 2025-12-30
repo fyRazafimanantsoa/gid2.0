@@ -2,12 +2,17 @@
 export type BlockType = 
   | 'text' 
   | 'heading' 
+  | 'h1'
+  | 'h2'
+  | 'h3'
+  | 'bullet'
+  | 'number'
   | 'todo' 
   | 'code' 
   | 'divider' 
   | 'kanban' 
   | 'database' 
-  | 'mindmap'
+  | 'mindmap' 
   | 'project_os'
   | 'callout'
   | 'embed'
@@ -32,6 +37,7 @@ export interface LinkMetadata {
   type: 'live' | 'snapshot';
   createdAt: number;
   updatedAt: number;
+  label?: string;
 }
 
 export interface SubTask {
@@ -58,6 +64,7 @@ export interface Page {
   updatedAt: number;
   isDeleted?: boolean;
   deletedAt?: number;
+  layout?: 'standard' | 'split';
 }
 
 export type DbColType = 'text' | 'number' | 'checkbox' | 'date' | 'select' | 'tags' | 'progress' | 'rating' | 'relation' | 'checklist';
