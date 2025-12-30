@@ -29,7 +29,9 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ content, metadata, onChang
   const [language, setLanguage] = useState<SupportedLanguage>(metadata?.language || 'javascript');
   const [output, setOutput] = useState<string>('');
   const [isRunning, setIsRunning] = useState(false);
-  const [pyodide, setPyodide] = useState<any>(null);
+  const [pyodideWorkerReady, setPyodideWorkerReady] = useState(false);
+  const workerRef = useRef<Worker | null>(null);
+  const rpcRef = useRef<{[id:string]: {resolve: (v:any)=>void, reject:(e:any)=>void}}>({});
   const [isExpanded, setIsExpanded] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(45);
   const [activeWebTab, setActiveWebTab] = useState<'js' | 'html' | 'css'>('js');
@@ -63,34 +65,35 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ content, metadata, onChang
 
   // Pyodide initialization for Python
   useEffect(() => {
-    if (language === 'python' && !pyodide && window.loadPyodide) {
-      const initPy = async () => {
-        try {
-          // Explicitly set indexURL to fix "Failed to fetch" errors during wasm loading
-          const p = await window.loadPyodide({
-            indexURL: "https://cdn.jsdelivr.net/pyodide/v0.23.4/full/"
-          });
-          
-          await p.loadPackage("micropip");
-          p.runPython(`
-import sys
-import io
-class StringIOWrapper(io.StringIO):
-    def __init__(self):
-        super().__init__()
-    def get_val(self):
-        return self.getvalue()
-sys.stdout = StringIOWrapper()
-          `);
-          setPyodide(p);
-        } catch (e: any) {
-          console.error("Pyodide init failed", e);
-          setOutput(`Pyodide Error: ${e?.message || 'Check network connection'}`);
-        }
-      };
-      initPy();
+    // Initialize the pyodide worker lazily when Python is requested
+    if (language === 'python' && !workerRef.current) {
+      try {
+        const w = new Worker('/pyodide-worker.js');
+        workerRef.current = w;
+        w.onmessage = (ev) => {
+          const msg = ev.data || {};
+          if (msg.type === 'ready') {
+            setPyodideWorkerReady(true);
+          } else if (msg.type === 'error') {
+            setOutput(`Pyodide Worker Error: ${msg.error}`);
+          } else if (msg.type === 'result') {
+            const id = msg.id;
+            const pending = rpcRef.current[id];
+            if (pending) {
+              if (msg.error) pending.reject(new Error(msg.error));
+              else pending.resolve(msg.result);
+              delete rpcRef.current[id];
+            }
+          }
+        };
+        // kick off init
+        w.postMessage({ type: 'init' });
+      } catch (e: any) {
+        console.error('Worker init failed', e);
+        setOutput(`Pyodide Worker Error: ${e?.message || 'Check network'}`);
+      }
     }
-  }, [language, pyodide]);
+  }, [language]);
 
   const handleLanguageChange = (newLang: SupportedLanguage) => {
     setLanguage(newLang);
@@ -111,18 +114,27 @@ sys.stdout = StringIOWrapper()
     setOutput('Python Runtime: Initializing logic core...');
     await new Promise(r => setTimeout(r, 600));
 
-    if (!pyodide) {
-      setOutput('Python Engine Error: Still booting. Please wait.');
+    if (!workerRef.current || !pyodideWorkerReady) {
+      setOutput('Python Engine: Initializing. Please wait...');
       setIsRunning(false);
       return;
     }
+
+    // send code to worker via RPC
+    const id = Math.random().toString(36).slice(2);
+    const w = workerRef.current;
+    const promise = new Promise<string>((resolve, reject) => {
+      rpcRef.current[id] = { resolve, reject };
+      try {
+        w.postMessage({ type: 'run', id, code: content });
+      } catch (e) { reject(e); }
+    });
+
     try {
-      pyodide.runPython("sys.stdout = io.StringIO()");
-      await pyodide.runPythonAsync(content);
-      const res = pyodide.runPython("sys.stdout.getvalue()");
+      const res = await promise;
       setOutput(res || 'Execution finished successfully.');
     } catch (err: any) {
-      setOutput('Python Traceback:\n' + err.message);
+      setOutput('Python Traceback:\n' + (err?.message || String(err)));
     }
     setIsRunning(false);
   };
