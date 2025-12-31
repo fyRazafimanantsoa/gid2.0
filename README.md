@@ -34,6 +34,15 @@ The build outputs to `dist/`. A `postbuild` step copies `sw.js` into `dist/sw.js
 - The repository includes a GitHub Actions workflow `.github/workflows/deploy-cloudflare-pages.yml` that builds and deploys `dist/` to Cloudflare Pages.
 - You must add the repository secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and `CLOUDFLARE_PROJECT_NAME` in GitHub Settings → Secrets.
 
+CI/Playwright notes:
+
+- The CI workflow now runs unit tests (`npm test`) and Playwright E2E before deploying. Ensure you add these GitHub secrets to the repository settings:
+	- `CLOUDFLARE_API_TOKEN`
+	- `CLOUDFLARE_ACCOUNT_ID`
+	- `CLOUDFLARE_PROJECT_NAME`
+
+If you prefer to let Cloudflare Pages build directly, you can instead connect the repo in the Pages UI and set the build command to `npm run build` and output directory to `dist`.
+
 Alternatively, connect the repo directly in the Cloudflare Pages UI and set the build command to `npm run build` and the output directory to `dist`.
 
 ## What I changed for deployment readiness

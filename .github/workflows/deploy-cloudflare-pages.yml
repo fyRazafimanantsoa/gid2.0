@@ -23,6 +23,15 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Run unit tests
+        run: npm test
+
+      - name: Install Playwright browsers and deps
+        run: npx playwright install --with-deps
+
+      - name: Run Playwright E2E
+        run: npx playwright test --reporter=list
+
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/pages-action@v1
         with:
