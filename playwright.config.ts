@@ -9,6 +9,7 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: 'list',
   use: {
+    baseURL: 'http://localhost:4173',
     headless: true,
     viewport: { width: 1280, height: 800 },
     actionTimeout: 5000,

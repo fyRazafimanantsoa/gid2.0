@@ -59,7 +59,15 @@ self.addEventListener('fetch', (e) => {
   // Large wasm/pyodide: network-first, fallback to cache but do not cache new large responses
   if (isLargeWasmOrPyodide(url)) {
     e.respondWith(
-      fetch(req).then(networkRes => networkRes).catch(() => caches.match(req))
+      fetch(req).then(networkRes => {
+        if (networkRes && networkRes.ok) {
+          return networkRes;
+        }
+        return caches.match(req).catch(() => null) || (networkRes && networkRes.ok ? networkRes : null);
+      }).catch(err => {
+        console.warn('[SW] Fetch error for WASM/Pyodide:', err, 'URL:', url);
+        return caches.match(req).catch(() => null);
+      })
     );
     return;
   }
@@ -70,10 +78,21 @@ self.addEventListener('fetch', (e) => {
       caches.open(CACHE_NAME).then(async cache => {
         const cached = await cache.match(req);
         const networkPromise = fetch(req).then(networkRes => {
-          if (networkRes && networkRes.ok) cache.put(req, networkRes.clone());
-          trimCache(CACHE_NAME, 60);
-          return networkRes;
-        }).catch(() => null);
+          try {
+            if (networkRes && networkRes.ok) {
+              cache.put(req, networkRes.clone());
+              trimCache(CACHE_NAME, 60);
+              return networkRes;
+            }
+            return cached || networkRes;
+          } catch (err) {
+            console.warn('[SW] Error caching font/CDN:', err, 'URL:', url);
+            return cached;
+          }
+        }).catch(err => {
+          console.warn('[SW] Fetch error for font/CDN:', err, 'URL:', url);
+          return cached;
+        });
         return cached || networkPromise;
       })
     );
@@ -86,20 +105,23 @@ self.addEventListener('fetch', (e) => {
       caches.match(req).then(cached => {
         if (cached) return cached;
         return fetch(req).then(networkRes => {
+          if (!networkRes || !networkRes.ok) {
+            return cached || (networkRes && networkRes.ok ? networkRes : new Response('Offline', { status: 503 }));
+          }
           return caches.open(CACHE_NAME).then(cache => {
-            // small assets only
             try {
               cache.put(req, networkRes.clone());
               trimCache(CACHE_NAME, 200);
             } catch (err) {
-              // ignore put failures (e.g., opaque responses)
+              console.warn('[SW] Error caching asset:', err, 'URL:', url);
             }
             return networkRes;
           });
-        }).catch(() => {
-          // fallback could be added here (image placeholder, offline page)
+        }).catch(err => {
+          console.warn('[SW] Fetch error, serving offline:', err, 'URL:', url);
+          return cached || new Response('Offline', { status: 503 });
         });
       })
     );
   }
-});
+}

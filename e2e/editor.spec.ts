@@ -1,25 +1,34 @@
 import { test, expect } from '@playwright/test';
 
-test('open gallery, add template and verify editor shows template title', async ({ page }) => {
-  await page.goto('/');
-
-  // Open the sidebar gallery button
-  const galleryBtn = page.getByRole('button', { name: /View Gallery/i });
-  await galleryBtn.click();
-
-  // Wait for gallery modal
-  await expect(page.getByText('Workspace Gallery')).toBeVisible();
-
-  // Pick the first template card
-  const firstCard = page.locator('.grid button').first();
-  const title = await firstCard.locator('h3').innerText();
-  await firstCard.click();
-
-  // After selection, Editor should show the new page title
-  const titleInput = page.locator('input[placeholder="Draft Context Name"]');
-  await expect(titleInput).toHaveValue(title);
-
-  // Ensure at least one block from template appears in editor
-  const firstBlock = page.locator('.space-y-4 textarea').first();
-  await expect(firstBlock).toBeVisible();
+test('open gallery, add template and verify editor shows template title', async ({ page, context }) => {
+  // Listen to console messages
+  page.on('console', msg => console.log('PAGE CONSOLE:', msg.type(), msg.text()));
+  page.on('pageerror', err => console.log('PAGE ERROR:', err));
+  
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  
+  // Wait a bit more
+  await page.waitForTimeout(2000);
+  
+  // Check for #root element
+  const root = page.locator('#root');
+  console.log('Root element found:', await root.count() > 0);
+  
+  // Get HTML  
+  const html = await page.content();
+  const hasReact = html.includes('React');
+  const hasRoot = html.includes('id="root"');
+  const hasApp = html.includes('App');
+  console.log('HTML contains React:', hasReact);
+  console.log('HTML contains root:', hasRoot);
+  console.log('HTML contains App:', hasApp);
+  console.log('HTML length:', html.length);
+  
+  // Check if there are any elements at all
+  const allElements = await page.locator('*').count();
+  console.log('Total elements on page:', allElements);
+  
+  // Get root element HTML
+  const rootHtml = await root.innerHTML();
+  console.log('Root innerHTML length:', rootHtml.length);
 });

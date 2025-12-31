@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "postbuild": "cp sw.js dist/sw.js || copy sw.js dist\\sw.js",
+    "postbuild": "(cp sw.js dist/sw.js && cp manifest.json dist/manifest.json) || (copy sw.js dist\\sw.js && copy manifest.json dist\\manifest.json)",
     "preview": "vite preview",
     "start-preview": "vite preview --port 4173",
     "test": "vitest",
